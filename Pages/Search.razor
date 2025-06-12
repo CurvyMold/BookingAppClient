@@ -1,0 +1,231 @@
+﻿@page "/searchpage/{customerID:guid}"
+@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+@using BookingApp.Shared;
+@using BookingApp.Shared.Responses.BusinessResponse
+@using BookingApp.Shared.Responses.CustomerResponse
+@using BookingApp.Shared.Requests.BusinessRequests;
+@using BookingApp.Shared.Requests.CustomerRequests;
+@using BookingApp.Shared.Responses.BusinessResponse
+@using BookingApp.Shared.Responses.CustomerResponse
+@using BookingApp.Shared.Requests.ServiceRequests;
+@using BookingApp.Shared.Responses.BusinessResponse;
+@using BookingApp.Shared.Responses.CustomerResponse;
+@using BookingApp.Shared.Responses.ServiceResponse;
+@using Microsoft.EntityFrameworkCore;
+@using MudBlazor;
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.Large">
+    <!-- Search Bar -->
+    <MudGrid>
+        <MudItem xs="12">
+            <MudTextField @bind-Value="SearchQuery" Label="Search for service or business name"
+            Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+            Variant="Variant.Outlined" Class="full-width"
+            Immediate="true" OnKeyUp="PerformSearch"/>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Filters & Sorting -->
+    <MudGrid Class="mt-2">
+        <MudItem xs="6">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FilterList" OnClick="OpenFilters">
+                Filters
+            </MudButton>
+        </MudItem>
+        <MudItem xs="6" Class="text-right">
+            <MudSelect T="string" Label="Sort by" Variant="Variant.Outlined" @bind-Value="SelectedSort">
+                <MudSelectItem T="string" Value=@("Sponsored")>Sponsored</MudSelectItem>
+                <MudSelectItem T="string" Value=@("Highest Rated")>Highest Rated</MudSelectItem>
+                <MudSelectItem T="string" Value=@("Nearest")>Nearest</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Category Filters -->
+    <MudGrid Class="mt-3">
+        <MudItem xs="12" Repeat="true">
+            @* <MudChip T="string" Label="Male Haircut" OnClick="() => ToggleCategoryFilter('Male Haircut')" Color="@GetChipColor('Male Haircut')" />
+            <MudChip T="string" Label="Skin Fade" OnClick="() => ToggleCategoryFilter('Male Haircut')" Color="@GetChipColor('Skin Fade')" />
+            <MudChip T="string" Label="Haircut & Beard" OnClick="() => ToggleCategoryFilter('Male Haircut')" Color="@GetChipColor('Haircut & Beard')" /> *@
+        </MudItem>
+    </MudGrid>
+
+    <!-- Search Results -->
+    <MudGrid Class="mt-4">
+        @foreach (var business in Businesses)
+        {
+            <MudItem xs="12">
+                <MudPaper Class="result-card" Elevation="3" @onclick="() => GoToDetails(business.BusinessID)">
+                    <MudGrid>
+                        <MudItem xs="4" Style="display: flex; align-items: center; justify-content: center;">
+                            <div style="background-color: #e0e0e0; width: 100%; height: 100px; display: flex; align-items: center; justify-content: center;">
+                                <MudText Typo="Typo.h6" Align="Align.Center">@business.BizName.Substring(0, 1)</MudText>
+                            </div>
+                        </MudItem>
+                        <MudItem xs="8" >
+                            <MudText Typo="Typo.h6">@business.BizName </MudText>
+                            <MudText Typo="Typo.body2">100 miles away</MudText>
+                            <MudRating Value="Rating" MaxValue="5" ReadOnly="true" />
+                            <MudText Typo="Typo.caption">no reviews</MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+</MudContainer>
+
+<!-- Styling -->
+<style>
+    .full-width { width: 100%; }
+    .text-right { text-align: right; }
+    .result-card { padding: 10px; cursor: pointer; margin-bottom: 10px; }
+    .business-image { width: 100%; height: 100px; object-fit: cover; }
+</style> 
+
+@code {
+
+    #region Lifecycle
+    [Parameter]
+    public Guid customerID { get; set; }
+
+    public Guid ServiceID { get; set; }
+
+    // private Business business = new Business();
+    private Customer customer = new Customer();
+    private Service service = new Service();
+
+    protected async override void OnInitialized()
+    {
+        LoadBusinesses();
+        LoadCustomer();
+        FilteredResults = Businesses;
+
+        //LoadServices();
+
+        base.OnInitialized();
+    }
+
+    #endregion
+
+    #region
+    async internal void LoadCustomer()
+    {
+
+        try
+        {
+            GetCustomerByIdRequest customerByIdRequest = new GetCustomerByIdRequest
+                {
+                    CustomerId = customerID
+                };
+
+
+            // GetBusinessByIdRequest BusinessRequest = new GetBusinessByIdRequest
+            // {
+            //         BusinessId = businessID
+            // };
+
+            var response = await Http.PostAsJsonAsync("api/Customer/getcustomerbyID", customerByIdRequest);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+            var loginResponse = await response.Content.ReadFromJsonAsync<GetCustomerByIdResponse>();
+
+            customer = loginResponse.Customer;
+            //service business.services.ToList();
+
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+
+    async internal void LoadBusinesses()
+    {
+
+        try
+        {
+            GetAllBusinessesRequest getAllBusinessesRequest = new GetAllBusinessesRequest();
+            var response = await Http.PostAsJsonAsync("api/Business/getallbusinesses", getAllBusinessesRequest);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+
+            var t = await response.Content.ReadFromJsonAsync<GetAllBusinessesResponse>();
+            Businesses = t.Businesses.ToList();
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+    #endregion
+    private string SearchQuery = "";
+    private string SelectedSort = "Sponsored";
+    private List<string> SelectedCategories = new();
+    private List<Business> FilteredResults = new();
+
+    // Dummy business data
+    @* private List<Business> Businesses = new()
+    {
+        new Business { Id = 1, Name = "Bilal Barber", Distance = 0.4, Rating = 5.0, ReviewCount = 222, MainImage = "barber.jpg" },
+        new Business { Id = 2, Name = "Elite Spa", Distance = 1.2, Rating = 4.8, ReviewCount = 156, MainImage = "spa.jpg" },
+        new Business { Id = 3, Name = "Joe’s Auto Repair", Distance = 2.5, Rating = 4.6, ReviewCount = 98, MainImage = "auto.jpg" }
+    };
+ *@
+    private List<Business> Businesses = new List<Business>();
+
+
+    private void PerformSearch()
+    {
+        FilteredResults = Businesses.Where(b => b.BizName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private void OpenFilters()
+    {
+        // Implement filter modal logic
+    }
+
+    private void ToggleCategoryFilter(string category)
+    {
+        if (SelectedCategories.Contains(category))
+            SelectedCategories.Remove(category);
+        else
+            SelectedCategories.Add(category);
+
+        PerformSearch(); // Re-filter results
+    }
+
+    private Color GetChipColor(string category) => SelectedCategories.Contains(category) ? Color.Primary : Color.Default;
+
+    private void GoToDetails(Guid businessId)
+    {
+        try
+        {
+          Navigation.NavigateTo($"/ViewService/{customerID}/{businessId}");
+        //return Task.CompletedTask;
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+
+        }
+        
+    }
+
+
+}
+
+

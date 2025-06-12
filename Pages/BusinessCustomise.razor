@@ -1,0 +1,692 @@
+﻿@page "/businesscustomise/{businessID:guid}"
+@* Expose Endpoints *@
+@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+@using BookingApp.Shared;
+@using BookingApp.Shared.Responses.BusinessResponse
+@using BookingApp.Shared.Requests.BusinessRequests;
+@using BookingApp.Shared.Requests.ServiceRequests;
+@using BookingApp.Shared.Responses.BusinessResponse;
+@using BookingApp.Shared.Responses.ServiceResponse;
+@using Microsoft.EntityFrameworkCore;
+@using MudBlazor;
+@* @using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.Processing *@
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<MudContainer Class="mt-8 px-4">
+    <!-- Header Section -->
+    <MudGrid Justify="Justify.Center">
+        <MudItem xs="12">
+            <MudTypography Typo="Typo.h4" Align="Align.Center" Color="Color.Primary">
+                Business Customization
+            </MudTypography>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Business Logo Upload Section -->
+    <MudGrid Class="justify-center mt-4">
+        <MudItem xs="12" md="6">
+            <MudCard Elevation="4" Class="pa-4 text-center rounded-card">
+                <MudTypography Typo="Typo.h6" Class="mb-2">Logo</MudTypography>
+                <MudText Typo="Typo.body2" Color="MudBlazor.Color.Secondary" Class="mb-4">
+                    Upload your business logo so it's visible on your profile.
+                </MudText>
+
+                <!-- Logo Upload Box -->
+                <MudFileUpload T="IBrowserFile"
+                Accept=".png, .jpg"
+                FilesChanged="@(file => UploadImage(file, "logo"))"
+                MaximumFileCount="1">
+                    <ActivatorContent>
+                        <div class="upload-box">
+                            @if (!string.IsNullOrEmpty(LogoPreview))
+                            {
+                                <MudImage Src="@LogoPreview" Class="logo-preview" Alt="Logo Preview" />
+                                <MudButton Variant="Variant.Text" Color="MudBlazor.Color.Error" OnClick="@ResetLogoImage">
+                                    Change Logo
+                                </MudButton>
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.PhotoCamera" Size="MudBlazor.Size.Large" />
+                                <p>Add Logo</p>
+                            }
+                        </div>
+                    </ActivatorContent>
+                </MudFileUpload>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Cover Photo Upload Section -->
+    <MudGrid Class="justify-center mt-4">
+        <MudItem xs="12">
+            <MudCard Elevation="4" Class="pa-4 text-center rounded-card">
+                <MudTypography Typo="Typo.h6" Class="mb-2">Cover Photo</MudTypography>
+                <MudText Typo="Typo.body2" Color="MudBlazor.Color.Secondary" Class="mb-4">
+                    Upload a cover photo to give customers insight into your business.
+                </MudText>
+
+                <!-- Cover Upload Box -->
+                <MudFileUpload T="IBrowserFile"
+                Accept=".png, .jpg"
+                FilesChanged="@(file => UploadImage(file, "cover"))"
+                MaximumFileCount="1">
+                    <ActivatorContent>
+                        <div class="upload-box cover-box">
+                            @if (!string.IsNullOrEmpty(CoverPreview))
+                            {
+
+                                <MudImage Src="@CoverPreview" Class="cover-preview" Alt="Cover Preview" />
+                                <MudButton Variant="Variant.Text" Color="MudBlazor.Color.Error" OnClick="@ResetCoverImage">
+                                    Change Cover Photo
+                                </MudButton>
+
+
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.PhotoCamera" Size="MudBlazor.Size.Large" />
+                                <p>Add Media</p>
+                            }
+                        </div>
+                    </ActivatorContent>
+                </MudFileUpload>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    @* <!-- Service Management Section -->
+    <MudCard Elevation="6" Class="mt-6 p-4">
+        <MudTypography Typo="Typo.h4" Align="Align.Center" Color="Color.Secondary" Class="fw-bold">
+            Service Management
+        </MudTypography>
+
+        <!-- Form for Adding/Editing a Service -->
+        <MudCard Elevation="3" Class="pa-4 mt-4">
+            <MudForm @ref="form" Valid="OnValidSubmit">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="4">
+                        <MudTextField T="string" Label="Service Name" @bind-Value="CurrentService.ServiceName" Required="true"/>
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField T="decimal" Label="Price (£)" @bind-Value="CurrentService.Price" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField T="int" Label="Time Taken (mins)" @bind-Value="CurrentService.Timetaken " Required="true" />
+                    </MudItem>
+                </MudGrid>
+                <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" @onclick="SubmitDialog" Class="mt-2">Save Service</MudButton>
+            </MudForm>
+        </MudCard>
+
+        <!-- Services List -->
+        <MudGrid Class="mt-4">
+            @if (Services.Count == 0)
+            {
+                <MudItem xs="12">
+                    <MudTypography Typo="Typo.body2" Align="Align.Center" Color="Color.Gray">
+                        No services available. Add a new service to get started.
+                    </MudTypography>
+                </MudItem>
+            }
+            else
+            {
+                @foreach (var service in Services)
+                {
+                    <MudItem xs="12">
+                        <MudCard Elevation="3" Class="pa-2 d-flex justify-between align-center">
+                            <MudTypography Typo="Typo.body1">@($"{service.ServiceName} - £{service.Price.ToString("0.00")}")</MudTypography>
+                            <div>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="MudBlazor.Color.Primary"
+                                @onclick="() => LoadServiceIntoForm(service.ServiceID )" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="MudBlazor.Color.Error"
+                                @onclick="() => DeleteService(service.ServiceID)" />
+                            </div>
+                        </MudCard>
+                    </MudItem>
+                }
+            }
+        </MudGrid>
+    </MudCard> *@
+
+    <MudCard Elevation="6" Class="mt-6 p-4">
+    <MudTypography Typo="Typo.h4" Align="Align.Center" Color="Color.Secondary" Class="fw-bold">
+        Service Management
+    </MudTypography>
+
+    <!-- Form for Adding/Editing a Service -->
+    <MudCard Elevation="3" Class="pa-4 mt-4">
+        <MudForm @ref="form" Valid="OnValidSubmit">
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="4">
+                    <MudTextField T="string" Label="Service Name" @bind-Value="CurrentService.ServiceName" Required="true"/>
+                </MudItem>
+
+                <MudItem xs="12" md="4">
+                    <MudSelect T="string" Label="Genre" @bind-Value="CurrentService.Genre" Required="true">
+                        @foreach (var genre in Genres)
+                        {
+                            <MudSelectItem Value="@genre">@genre</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" md="4">
+                    <MudTextField T="decimal" Label="Price (£)" @bind-Value="CurrentService.Price" Required="true" />
+                </MudItem>
+
+                <MudItem xs="12" md="4">
+                    <MudSelect T="int" Label="Time Taken (mins)" @bind-Value="CurrentService.Timetaken" Required="true">
+                        @foreach (var time in TimeOptions)
+                        {
+                            <MudSelectItem Value="@time">@time min</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+
+            <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" @onclick="SubmitDialog" Class="mt-2">Save Service</MudButton>
+        </MudForm>
+    </MudCard>
+
+    <!-- Services List Grouped by Genre -->
+    <MudGrid Class="mt-4">
+        @if (!Services.Any())
+        {
+            <MudItem xs="12">
+                <MudTypography Typo="Typo.body2" Align="Align.Center" Color="Color.Gray">
+                    No services available. Add a new service to get started.
+                </MudTypography>
+            </MudItem>
+        }
+        else
+        {
+            @foreach (var genreGroup in Services.GroupBy(s => s.Genre))
+            {
+                <MudItem xs="12">
+                    <MudTypography Typo="Typo.h6" Class="mt-4 mb-2">@genreGroup.Key</MudTypography>
+                </MudItem>
+
+                @foreach (var service in genreGroup)
+                {
+                    <MudItem xs="12">
+                        <MudCard Elevation="3" Class="pa-2 d-flex justify-between align-center">
+                            <MudTypography Typo="Typo.body1">
+                                @($"{service.ServiceName} - £{service.Price.ToString("0.00")} | {service.Timetaken} mins")
+                            </MudTypography>
+                            <div>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="MudBlazor.Color.Primary"
+                                               @onclick="() => LoadServiceIntoForm(service.ServiceID)" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="MudBlazor.Color.Error"
+                                               @onclick="() => DeleteService(service.ServiceID)" />
+                            </div>
+                        </MudCard>
+                    </MudItem>
+                }
+            }
+        }
+    </MudGrid>
+</MudCard>
+
+
+    <MudPaper Class="pa-6" Elevation="3">
+        <MudText Typo="Typo.h6" Class="mb-4">Select Work Hours</MudText>
+
+        <MudGrid>
+            @foreach (var day in business.BusinessOpenTimes)
+            {
+                <MudItem xs="12" Class="d-flex align-center mb-2">
+                    @*                     <MudCheckBox T="bool" @bind-Checked="day.IsOpen" Class="me-4" />*@                    
+                        <MudCheckBox T="bool" @bind-Value="day.IsOpen" @onclick="() => OnCheckedChanged(day)" Class="me-4" />
+
+
+                    <MudText Class="me-4" Style="width: 120px;">@day.Day</MudText>
+
+                    @if (day.IsOpen)
+                    {
+                        <MudSelect T="string"
+                        Value="@(FormatTime(day.OpeningHour, day.OpeningMinute))"
+                        ValueChanged="val => UpdateTime(val, day, true)"
+                        Style="width: 120px;" Dense="true">
+
+                            @foreach (var time in FormattedTimes)
+                            {
+                                <MudSelectItem Value="@time">@time</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                        <MudText Class="mx-2">-</MudText>
+
+                        <MudSelect T="string"
+                        Value="@(FormatTime(day.ClosingHour, day.ClosingMinute))"
+                        ValueChanged="val => UpdateTime(val, day, false)"
+                        Style="width: 120px;" Dense="true">
+                            @foreach (var time in FormattedTimes)
+                            {
+                                <MudSelectItem Value="@time">@time</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                    else
+                    {
+                        <MudText Color="Color.Secondary">Closed</MudText>
+                    }
+                </MudItem>
+            }
+        </MudGrid>
+
+        <MudDivider Class="my-4" />
+
+        <div class="d-flex justify-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" @onclick="() => Save()">Save</MudButton>
+        </div>
+    </MudPaper>
+
+
+</MudContainer>
+
+@code
+{
+
+    #region Lifecycle
+    [Parameter]
+    public Guid businessID { get; set; }
+    public Guid ServiceID { get; set; }
+
+    private Business business = new Business();
+    private Service service = new Service();
+
+    protected async override void OnInitialized()
+    {
+        await LoadBusiness();
+
+        if (business.BusinessOpenTimes.Count() == 0)
+        {
+            await LoadTimes();  
+        }
+
+
+        base.OnInitialized();
+    }
+
+    #endregion
+
+    #region business management
+
+    async internal Task LoadBusiness()
+    {
+
+        try
+        {
+            GetBusinessByIdRequest BusinessRequest = new GetBusinessByIdRequest
+            {
+                    BusinessId = businessID
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Business/getbusinessbyid", BusinessRequest);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+            var loginResponse = await response.Content.ReadFromJsonAsync<GetBusinessByIdResponse>();
+
+            business = loginResponse.Business;
+            Services = business.services.ToList();
+
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+
+    private void SaveBusinessHours()
+    {
+        // Save logic here
+    }
+
+
+    #endregion
+
+    #region service management
+
+
+
+    private List<Service> Services = new List<Service>(); // Ensure list is initialized
+    private Service CurrentService = new Service();
+    private bool IsDialogVisible;
+    private string DialogTitle;
+    private MudForm form;
+
+    private List<string> Genres = new() { "Haircut", "Shave", "Beard Trim", "Color", "Styling" };
+    private List<int> TimeOptions = new() { 15, 30, 45, 60, 75, 90, 120 };
+
+    async Task Post()
+    {
+        try
+        {
+
+            var result = await Http.PostAsJsonAsync("api/Service", service);
+            if (!result.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+    }
+
+    private async void EditService()
+    {
+
+        var result = await Http.PostAsJsonAsync("api/Service/updateservice", CurrentService);
+        if (!result.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Failed to update data!");
+        }
+        LoadBusiness();
+        StateHasChanged();
+
+    }
+
+    private async void DeleteService(Guid id)
+    {
+
+        var deleteServiceRequest = new DeleteServiceByIdRequest()
+            {
+                ServiceId = id
+            };
+
+
+        var response = await Http.PostAsJsonAsync("api/Service/deleteservicebyid", deleteServiceRequest);
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Failed to delete object!");
+        }
+
+        Services.RemoveAll(s => s.ServiceID == id);
+
+        StateHasChanged();
+    }
+
+    async Task SubmitDialog()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentService.ServiceName) || string.IsNullOrWhiteSpace(CurrentService.Price.ToString()) || string.IsNullOrWhiteSpace(CurrentService.Timetaken.ToString()) ||
+        !decimal.TryParse(CurrentService.Price.ToString(), out _) ||
+        !int.TryParse(CurrentService.Timetaken.ToString(), out _))
+        {
+            Console.WriteLine("All fields are required.");
+            return;
+        }
+
+        if (CurrentService.ServiceID == Guid.Empty)
+        {
+            // Add a new service
+            CurrentService.ServiceID = Guid.NewGuid();
+            CurrentService.BusinessID = business.BusinessID;
+            //CurrentService.Business = business;
+            Services.Add(CurrentService);
+
+
+            var result = await Http.PostAsJsonAsync("api/Service", CurrentService);
+            if (!result.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+
+        }
+        else
+        {
+            EditService();
+        }
+
+        // Clear the form
+        CurrentService = new Service();
+        StateHasChanged();
+    }
+
+
+
+
+    private void LoadServiceIntoForm(Guid id)
+    {
+        var service = Services.FirstOrDefault(s => s.ServiceID == id);
+        if (service != null)
+        {
+            CurrentService = new Service
+                {
+                    ServiceID = service.ServiceID,
+                    BusinessID = service.BusinessID,
+                    ServiceName = service.ServiceName,
+                    Price = service.Price,
+                    Timetaken = service.Timetaken
+                };
+        }
+    }
+
+    #endregion
+
+
+    #region time management
+
+
+    List<BusinessOpenTime> newDays = new List<BusinessOpenTime>();
+
+
+    async internal Task LoadTimes()
+    {
+        BusinessOpenTime openTime = new BusinessOpenTime();
+
+        DayOfWeek day;
+        for (int i = 0; i < 7; i++)
+        {
+            newDays.Add(
+                new BusinessOpenTime
+                    {
+                        Id = Guid.NewGuid(),
+                        Business = business,
+                        Day = (DayOfWeek)((i + 1) % 7),
+                        BusinessId = business.BusinessID,
+                        OpeningHour = 9,
+                        OpeningMinute = 0,
+                        ClosingHour = 21,
+                        ClosingMinute = 0,
+                        IsOpen = true
+                    });
+        }
+
+
+        UploadBusinessHoursRequest request = new UploadBusinessHoursRequest();
+        request.BusinessOpenTimes = newDays.ToList();
+
+
+        var result = await Http.PostAsJsonAsync("api/Business/uploadbusinesshours", request);
+        if (!result.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Failed to submit data!");
+        }
+
+
+    }
+
+
+    private List<string> FormattedTimes = Enumerable.Range(0, 24)
+    .SelectMany(h => new[]
+    {
+        $"{(h % 12 == 0 ? 12 : h % 12)}:00 {(h < 12 ? "AM" : "PM")}",
+        $"{(h % 12 == 0 ? 12 : h % 12)}:30 {(h < 12 ? "AM" : "PM")}"
+        }).ToList();
+
+    // Converts "9:30 AM" -> (9, 30)
+    private (int hour, int minute) ParseTime(string time)
+    {
+        var match = Regex.Match(time, @"(\d+):(\d+)\s*(AM|PM)", RegexOptions.IgnoreCase);
+        if (!match.Success) return (0, 0);
+
+        int hour = int.Parse(match.Groups[1].Value);
+        int minute = int.Parse(match.Groups[2].Value);
+        string ampm = match.Groups[3].Value.ToUpper();
+
+        if (ampm == "PM" && hour != 12) hour += 12;
+        if (ampm == "AM" && hour == 12) hour = 0;
+
+        return (hour, minute);
+    }
+
+    // Converts (9, 30) -> "9:30 AM"
+    private string FormatTime(int hour, int minute)
+    {
+        string ampm = hour >= 12 ? "PM" : "AM";
+        int displayHour = hour % 12 == 0 ? 12 : hour % 12;
+        return $"{displayHour}:{minute:D2} {ampm}";
+    }
+
+
+    private void UpdateTime(string selectedTime, BusinessOpenTime day, bool isStart)
+    {
+        var (hour, minute) = ParseTime(selectedTime);
+
+        if (isStart)
+        {
+            day.OpeningHour = hour;
+            day.OpeningMinute = minute;
+        }
+        else
+        {
+            day.ClosingHour = hour;
+            day.ClosingMinute = minute;
+        }
+    }
+
+    private Task OnCheckedChanged(BusinessOpenTime day)
+    {
+        var selectedDay = business.BusinessOpenTimes.FirstOrDefault(d => d.Day == day.Day);
+
+
+        if (selectedDay is not null)
+        {
+            selectedDay.IsOpen = !selectedDay.IsOpen;
+        }
+
+        return Task.CompletedTask;
+    }
+
+
+
+    #endregion
+
+
+    #region dialog
+
+    private void CancelDialog()
+    {
+        CurrentService = new Service();
+    }
+
+    private void OnValidSubmit() => SubmitDialog();
+
+    private void OnInvalidSubmit() => Console.WriteLine("Form invalid");
+
+    #endregion
+
+
+    #region image management
+
+    private string? LogoPreview;
+    private string? CoverPreview;
+
+    private async Task UploadImage(IBrowserFile file, string type)
+    {
+        if (file == null || (type != "logo" && type != "cover"))
+            return;
+
+        var folder = type == "logo" ? "Logo" : "CoverImage";
+        var fileName = file.Name;
+
+        // Create preview
+        var buffer = new byte[file.Size];
+        await file.OpenReadStream().ReadAsync(buffer);
+        var base64 = Convert.ToBase64String(buffer);
+        var imageDataUrl = $"data:{file.ContentType};base64,{base64}";
+
+        if (type == "logo") LogoPreview = imageDataUrl;
+        else CoverPreview = imageDataUrl;
+
+        // Upload to server
+        var content = new MultipartFormDataContent();
+        var streamContent = new StreamContent(file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024)); // Max 5 MB
+        content.Add(streamContent, "file", fileName);
+
+        var response = await Http.PostAsync($"api/upload/{businessID}/{folder}", content);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Image upload failed");
+            // Optionally show snackbar or error message here
+        }
+    }
+
+    private void ResetLogoImage()
+    {
+        LogoPreview = null;
+    }
+
+    private void ResetCoverImage()
+    {
+        CoverPreview = null;
+    }
+
+    #endregion
+
+
+    private string SelectedTimeframe { get; set; } = "Immediately";
+
+
+    #region CRUD
+
+
+    private async void Save()
+    {
+        // Logic to save the schedule
+        // businessOpenTime.OpeningHour = Days.StartTime;
+
+
+        try
+        {
+            UploadBusinessHoursRequest request = new UploadBusinessHoursRequest();
+            request.BusinessOpenTimes = business.BusinessOpenTimes.ToList();
+
+       
+            var result = await Http.PostAsJsonAsync("api/Business/updatebusinesshours", request);
+            if (!result.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception occurred: {ex.Message}");
+            }
+        
+
+    }
+
+    private void Cancel()
+    {
+        // Snackbar.Add("Changes canceled.", Severity.Info);
+    }
+
+    #endregion
+}
+
+

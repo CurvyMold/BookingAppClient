@@ -1,0 +1,290 @@
+﻿@page "/ViewService/{customerID:guid}/{businessID:guid}"
+@* Expose Endpoints *@
+@using BookingApp.Shared;
+@using BookingApp.Shared.Responses.BusinessResponse
+@using BookingApp.Shared.Requests.BusinessRequests;
+@using BookingApp.Shared.Requests.ServiceRequests;
+@using BookingApp.Shared.Responses.BusinessResponse;
+@using BookingApp.Shared.Responses.ServiceResponse;
+@using Microsoft.EntityFrameworkCore;
+@inject NavigationManager NavManager
+@inject HttpClient Http
+@inject IDialogService DialogService
+
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="pa-0">
+    <!-- 🔹 Barber Shop Image -->
+    <MudPaper Class="barber-image">
+        <MudAvatar Size="Size.Large" Class="favorite-icon">
+            <MudIcon Icon="@Icons.Material.Filled.FavoriteBorder" Color="Color.Primary" />
+        </MudAvatar>
+    </MudPaper>
+
+    <!-- 🔹 Barber Shop Info -->
+    <MudPaper Class="barber-info pa-4">
+        <MudText Typo="Typo.h5" Class="mb-1">@business.BizName</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">@business.BizAddress</MudText>
+
+        <!-- 🔹 Rating & Reviews -->
+        <MudGrid Justify="Justify.SpaceBetween" Class="mt-2">
+            <MudItem>
+                <MudRating Value="4" MaxValue="5" ReadOnly="true" Color="Color.Warning" />
+            </MudItem>
+            <MudItem>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">no reviews</MudText>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- 🔹 Tabs (Services, Details, Reviews, Our Work) -->
+    @* <div class="services-section">
+        <MudTabs>
+            <MudTabPanel Text="Services">
+                <!-- Haircut Services -->
+                <MudText Typo="Typo.subtitle1" Class="mt-2 mb-2">HAIRCUT</MudText>
+
+                @foreach (var service in Services)
+                {
+                    <MudPaper Class="service-card">
+                        <MudGrid Container AlignItems="Center" Justify="Justify.SpaceBetween">
+                            <!-- Service Name -->
+                            <MudItem xs="7">
+                                <MudText Typo="Typo.body1">@service.ServiceName</MudText>
+                            </MudItem>
+
+                            <!-- Price and Duration -->
+                            <MudItem xs="3" Class="text-right">
+                                <MudText Typo="Typo.body2">£@service.Price.ToString("0.00") | @service.Timetaken Min</MudText>
+                            </MudItem>
+
+                            <!-- Book Button -->
+                            <MudItem xs="2">
+                               <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => OpenBookingDialog(service))">BOOK</MudButton>
+                            </MudItem>
+
+
+                        </MudGrid>
+                    </MudPaper>
+                }
+
+
+
+            </MudTabPanel>
+
+            <MudTabPanel Text="Details">
+                <MudText Typo="Typo.body1">More details about the barber shop...</MudText>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Reviews">
+                <MudText Typo="Typo.body1">Customer reviews will be shown here...</MudText>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Our Work">
+                <MudText Typo="Typo.body1">Gallery of previous haircuts...</MudText>
+            </MudTabPanel>
+        </MudTabs>
+    </div> *@
+
+    <div class="services-section">
+        <MudTabs>
+            <MudTabPanel Text="Services">
+
+                @foreach (var genreGroup in Services.GroupBy(s => s.Genre))
+                {
+                    <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2 text-uppercase">
+                        @genreGroup.Key
+                    </MudText>
+
+                    @foreach (var service in genreGroup)
+                    {
+                        <MudPaper Class="service-card mb-2">
+                            <MudGrid Container AlignItems="Center" Justify="Justify.SpaceBetween">
+                                <!-- Service Name -->
+                                <MudItem xs="7">
+                                    <MudText Typo="Typo.body1">@service.ServiceName</MudText>
+                                </MudItem>
+
+                                <!-- Price and Duration -->
+                                <MudItem xs="3" Class="text-right">
+                                    <MudText Typo="Typo.body2">
+                                        £@service.Price.ToString("0.00") | @service.Timetaken Min
+                                    </MudText>
+                                </MudItem>
+
+                                <!-- Book Button -->
+                                <MudItem xs="2">
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                    OnClick="@(() => OpenBookingDialog(service))">BOOK</MudButton>
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    }
+                }
+
+            </MudTabPanel>
+
+            <MudTabPanel Text="Details">
+                <MudText Typo="Typo.body1">More details about the barber shop...</MudText>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Reviews">
+                <MudText Typo="Typo.body1">Customer reviews will be shown here...</MudText>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Our Work">
+                <MudText Typo="Typo.body1">Gallery of previous haircuts...</MudText>
+            </MudTabPanel>
+        </MudTabs>
+    </div>
+
+</MudContainer>
+
+@code {
+
+
+    private void BookService(Service service)
+    {
+        Console.WriteLine($"Booking {service.ServiceName} for £{service.Price}");
+    }
+    private async Task OpenBookingDialog(Service service)
+    {
+        var parameters = new DialogParameters
+            {
+                ["Service"] = service, 
+                ["CustomerID"] = customerID,
+                ["BusinessName"] = business.BizName
+            };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dialog = DialogService.Show<BookingDialog>("Select Appointment", parameters, options);
+
+
+        var result = await dialog.Result;
+        if (result.Data is BookingInfo selectedBooking)
+        {
+            Console.WriteLine($"User picked {selectedBooking.Date} at {selectedBooking.Time}");
+            // Proceed with booking logic
+        }
+        else
+        {
+            Console.WriteLine("Booking was cancelled.");
+        }
+        if (!result.Canceled && result.Data is Booking booking)
+        {
+            Console.WriteLine($"Booking created: {booking.BookingID}");
+            // Optionally show toast/snackbar or reload bookings
+        }
+
+    }
+    public class BookingInfo
+    {
+        public DateTime Date { get; set; }
+        public string Time { get; set; } = string.Empty;
+    }
+
+
+    #region Lifecycle
+    [Parameter]
+    public Guid businessID { get; set; }
+    [Parameter]
+    public Guid customerID { get; set; }
+
+
+    public Guid ServiceID { get; set; }
+
+    private Business business = new Business();
+    private Service service = new Service();
+    private Booking booking = new Booking();
+    private List<Service> Services = new List<Service>(); // Ensure list is initialized
+
+    protected async override void OnInitialized()
+    {
+        LoadBusiness();
+        CalculateWeekDates();
+
+        base.OnInitialized();
+    }
+
+    #endregion
+
+    #region business
+
+    async internal void LoadBusiness()
+    {
+
+        try
+        {
+            GetBusinessByIdRequest BusinessRequest = new GetBusinessByIdRequest
+            {
+                    BusinessId = businessID
+            };
+
+            var response = await Http.PostAsJsonAsync("api/Business/getbusinessbyid", BusinessRequest);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+            var loginResponse = await response.Content.ReadFromJsonAsync<GetBusinessByIdResponse>();
+
+            business = loginResponse.Business;
+            Services = business.services.ToList();
+           // LoadService();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+    #endregion
+
+    #region ServiceLoad
+    async internal void LoadService()
+    {
+
+        try
+        {
+            GetServiceFromServiceIDRequest ServiceRequest = new GetServiceFromServiceIDRequest
+            {
+                    ServiceId = ServiceID
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+    #endregion
+
+    private DateTime? SelectedDate { get; set; } = DateTime.Today;
+    private List<string> WeekDays = new() { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    private List<DateTime> WeekDates = new();
+
+    private void SelectDate(DateTime date)
+    {
+        SelectedDate = date;
+        CalculateWeekDates();
+    }
+
+    private void OnDateChanged(DateTime? newDate)
+    {
+        SelectedDate = newDate;
+        CalculateWeekDates();
+    }
+     
+    private void CalculateWeekDates()
+    {
+        WeekDates.Clear();
+
+        if (SelectedDate.HasValue)
+        {
+            var startOfWeek = SelectedDate.Value.AddDays(-(int)SelectedDate.Value.DayOfWeek);
+            for (int i = 0; i < 7; i++)
+            {
+                WeekDates.Add(startOfWeek.AddDays(i));
+            }
+        }
+    }
+
+}

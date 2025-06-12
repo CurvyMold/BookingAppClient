@@ -1,0 +1,151 @@
+﻿@using BookingApp.Client.Services;
+
+@inject NavigationManager Navigation
+@inject NavigationService NavService
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">BookerS</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable">
+    <nav class="flex-column" @onclick="ToggleNavMenu">
+
+        <!-- Always Visible: Home Link -->
+        @*  <div class="nav-item px-3">
+            <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div> *@
+
+        <!-- Conditional Links Based on Role -->
+        @if (IsLoggedIn)
+        {
+            @if (UserRole == "Customer")
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="@GetCustomerCustomizationUrl()">
+                        <span class="bi bi-person-circle" aria-hidden="true"></span> My Dashboard
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="@GetCustomerAppoimentsUrl()">
+                        <span class="bi bi-calendar-check" aria-hidden="true"></span> My Appointments
+                    </NavLink>
+                </div>
+
+                
+            }
+            else if (UserRole == "Business")
+            {
+               
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="@GetBusinessCustomizationUrl()">
+                        <span class="bi bi-clipboard-check" aria-hidden="true"></span> Business Dashboard
+                    </NavLink>
+                </div> 
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="@GetBusinessAppoimentsUrl()">
+                        <span class="bi bi-clipboard-check" aria-hidden="true"></span> Manage Bookings
+                    </NavLink>
+                </div>
+                
+            }
+
+            <!-- Logout Option -->
+            <div class="nav-item px-3">
+                <button class="nav-link btn-link" @onclick="Logout">
+                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
+                </button>
+            </div>
+        }
+        else
+        {
+            <!-- Login Option -->
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="/">
+                    <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span> Login
+                </NavLink>
+            </div>
+        }
+    </nav>
+</div>
+
+@code {
+    // Menu State
+    private bool collapseNavMenu = true;
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    private void ToggleNavMenu() => collapseNavMenu = !collapseNavMenu;
+
+    // User Authentication State
+    private bool IsLoggedIn { get; set; } = false; // User is logged out by default
+    private string UserRole { get; set; } // Can be "Customer" or "Business"
+    private Guid UserID { get; set; } //Users ID gained when logging in
+
+    //how to navigate to user pages
+    private string GetBusinessCustomizationUrl()
+    {
+        return $"/BusinessCustomise/{UserID}";
+    }
+    private string GetCustomerCustomizationUrl()
+    {
+        return $"/customerdashboard/{UserID}";
+    }
+    private string GetCustomerAppoimentsUrl()
+    {
+        return $"/appointments/{UserID}";
+    }
+    private string GetBusinessAppoimentsUrl()
+    {
+        return $"/businesscalendar/{UserID}";
+    }
+
+    // Simulate a Login (for testing purposes)
+    // private void SimulateLogin(string role)
+    // {
+    //     IsLoggedIn = true;
+    //     UserRole = Business;
+    // }
+
+    // Logout Method
+
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += HandleLocationChanged;
+        base.OnInitialized();
+    }
+
+
+    private void Logout()
+    {
+        IsLoggedIn = false;
+        UserRole = "NoUser";
+        NavService.UserType = "NoUser";
+        // NavService.UserID = null;
+        Navigation.NavigateTo("/"); // Redirect to login page after logout
+    }
+
+
+    private void HandleLocationChanged(object sender, LocationChangedEventArgs e)
+    {
+        if (NavService.UserType == "NoUser")
+        {
+            IsLoggedIn = false;
+        }
+        else
+        {
+            IsLoggedIn = true;
+
+        }
+        UserRole = NavService.UserType;
+        UserID = NavService.UserID;
+        StateHasChanged();
+    }
+}
+

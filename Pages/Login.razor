@@ -1,0 +1,264 @@
+﻿@page "/"
+@* Expose Endpoints *@
+@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+@using BookingApp.Client.Services;
+@using BookingApp.Shared;
+@using BookingApp.Shared.Requests.AuthenticationRequests;
+@using BookingApp.Shared.Responses.AuthenticationResponse
+@using BookingApp.Shared.Responses.AuthenticationResponse
+@using BookingApp.Shared.Responses.AuthenticationResponse;
+@using Microsoft.EntityFrameworkCore;
+
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject NavigationService NavService
+
+
+<MudGrid Justify="Justify.Center" AlignItems="AlignItems.Center" Style="height: 100vh;">
+    <MudItem xs="12" sm="7" md="5">
+        <MudPaper Class="pa-4" Style="max-width: 500px; width: 100%;">
+            <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">Login to your Account</MudText>
+            <MudForm @ref="form" @bind-IsValid="@success" @bind-Errors="@errors">
+
+                <div class="d-flex">
+                    <MudRadioGroup T="string" Label="Account Type" @bind-Value="accountType" Required="true" RequiredError="Account type is required!">
+                        <MudRadio Value="@("Customer")">Personal</MudRadio>
+                        <MudRadio Value="@("Business")">Professional</MudRadio>
+                    </MudRadioGroup>
+                </div>
+
+                <MudTextField T="string" Label="Email" Required="true" RequiredError="Email is required!"
+                Immediate="true"
+                Validation="@(new EmailAddressAttribute() {ErrorMessage = "The email address is invalid"})"
+                @bind-Value="EmailValue" />
+
+
+                <MudTextField T="string" Label="Password" HelperText="Do not share your password"
+                Immediate="true"
+                InputType="InputType.Password"
+                Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))" Required="true"
+                RequiredError="Password is required!" 
+                @bind-Value="PasswordValue" />
+
+
+                <div class="d-flex align-center justify-space-between">
+                    <MudCheckBox T="bool" Required="false" Label="Save for next time" />
+                </div>
+                <div class="d-flex align-center justify-space-between">
+                    <MudLink Href="/signup" Target="_self" Class="mud-button mud-button-text mud-primary-text">
+                        Dont have an account? Sign up
+                    </MudLink>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" Class="ml-auto" @onclick="Post">Login</MudButton>
+                </div>
+            </MudForm>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+
+    protected override void OnInitialized()
+    {
+        customer = new Customer();
+        business = new Business();
+    }
+
+    #region Properties
+    [Inject]
+    public ISnackbar Snackbar { get; set; }
+
+    bool success;
+    string[] errors = { };
+    MudForm form;
+    string accountType;
+
+
+    private IEnumerable<string> PasswordStrength(string pw)
+    {
+        if (string.IsNullOrWhiteSpace(pw))
+        {
+            yield return "Password is required!";
+            yield break;
+        }
+    }
+    string EmailValue
+    {
+        get
+        {
+            if (accountType == "Customer")
+            {
+                customer ??= new Customer();
+                return customer.Email;
+            }
+            else
+            {
+                business ??= new Business();
+                return business.BizEmail;
+            }
+        }
+        set
+        {
+            if (accountType == "Customer")
+            {
+                customer ??= new Customer();
+                customer.Email = value;
+            }
+            else
+            {
+                business ??= new Business();
+                business.BizEmail = value;
+            }
+        }
+    }
+
+    string PasswordValue
+    {
+        get
+        {
+            if (accountType == "Customer")
+            {
+                customer ??= new Customer();
+                return customer.Password;
+            }
+            else
+            {
+                business ??= new Business();
+                return business.BizPass;
+            }
+        }
+        set
+        {
+            if (accountType == "Customer")
+            {
+                customer ??= new Customer();
+                customer.Password = value;
+            }
+            else
+            {
+                business ??= new Business();
+                business.BizPass = value;
+            }
+        }
+    }
+
+    #endregion
+
+
+    #region Crud - login
+
+    Customer customer = new Customer();
+    Business business = new Business();
+
+    async Task Post()
+    {
+        try
+        {
+            BookingAppLoginRequest loginRequest = new BookingAppLoginRequest
+            {
+                    Email = EmailValue,
+                    Password = PasswordValue,
+                    AccountType = accountType
+            };
+
+            var response = await Http.PostAsJsonAsync("api/auth/login", loginRequest);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Login failed. Please check your credentials and try again.", Severity.Error);
+                return;
+            }
+
+            var loginResponse = await response.Content.ReadFromJsonAsync<BookingAppLoginResponse>();
+
+            if (loginResponse == null)
+            {
+                Snackbar.Add("Unexpected error occurred while logging in. Please try again later.", Severity.Error);
+                return;
+            }
+
+            if (accountType == "Business")
+            {
+                business = loginResponse.Business;
+
+                if (business == null || business.BusinessID == Guid.Empty)
+                {
+                    Snackbar.Add("Login failed. Please check your credentials and try again.", Severity.Error);
+                    return;
+                }
+
+                NavService.UserType = "Business";
+                NavService.UserID = business.BusinessID;
+                Navigation.NavigateTo($"/BusinessCustomise/{business.BusinessID}");
+            }
+            else if (accountType == "Customer")
+            {
+                customer = loginResponse.Customer;
+
+                if (customer == null || customer.CustomerID == Guid.Empty)
+                {
+                    Snackbar.Add("Login failed. Please check your credentials and try again.", Severity.Error);
+                    return;
+                }
+
+                NavService.UserType = "Customer";
+                NavService.UserID = customer.CustomerID;
+                Navigation.NavigateTo($"/customerdashboard/{customer.CustomerID}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("An error occurred while attempting to log in. Please try again.", Severity.Error);
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+
+
+        // try
+        // {
+
+        //     BookingAppLoginRequest loginRequest = new BookingAppLoginRequest
+        //     {
+        //                 Email = EmailValue,
+        //                 Password = PasswordValue,
+        //                 AccountType = accountType
+        //     };
+
+        //     var response = await Http.PostAsJsonAsync("api/auth/login", loginRequest);
+        //     if (!response.IsSuccessStatusCode)
+        //     {
+        //         Snackbar.Add("Login failed. Please check your credentials and try again.", Severity.Error);
+        //         return;
+        //     }
+
+
+        //         if (accountType == "Business")
+        //         {
+        //             var loginResponse = await response.Content.ReadFromJsonAsync<BookingAppLoginResponse>();
+
+        //             business = loginResponse.Business;
+
+        //             NavService.UserType = "Business";
+        //             NavService.UserID = business.BusinessID;
+        //             Navigation.NavigateTo($"/BusinessCustomise/" + business.BusinessID );
+        //         }
+        //         else if (accountType == "Customer")
+        //         {
+        //                 var loginResponse = await response.Content.ReadFromJsonAsync<BookingAppLoginResponse>();
+
+        //                 customer = loginResponse.Customer;
+
+        //                 NavService.UserType = "Customer";
+        //                 NavService.UserID = customer.CustomerID;
+
+        //                 Navigation.NavigateTo($"/customerdashboard/" + customer.CustomerID);
+        //         }
+        // }
+        // catch (Exception ex)
+        //     {
+        //         Console.WriteLine($"Exception occurred: {ex.Message}");
+        //     }
+    }
+    #endregion
+
+
+}   

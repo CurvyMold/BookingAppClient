@@ -1,0 +1,49 @@
+﻿@page "/test"
+@using System.Net.Http;
+@using System.Text;
+@using Newtonsoft.Json;
+@using BookingApp.Shared;
+@using Microsoft.EntityFrameworkCore;
+@inject HttpClient Http
+
+<PageTitle>Home</PageTitle>
+
+<h1>Customer Login</h1>
+
+<EditForm Model="@customer" OnValidSubmit="Post">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <input placeholder="Enter username" @bind="@customer.Name" />
+    <input placeholder="Enter email" @bind="@customer.Email" />
+    <input placeholder="Enter address" @bind="@customer.Address" />
+    <input placeholder="Enter age" @bind="@customer.Age" />
+    <input placeholder="Enter password" @bind="@customer.Password" />
+    <input placeholder="Enter gender" @bind="@customer.Gender" />
+
+    <button type="button" @onclick="Post">Add</button>
+</EditForm>
+
+@code {
+    Customer customer = new Customer();
+
+
+
+    async Task Post()
+    {
+        try
+        {
+
+            var result = await Http.PostAsJsonAsync("api/Customer", customer);
+            if (!result.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+            
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+    }
+}

@@ -1,0 +1,219 @@
+﻿@page "/customerdashboard/{customerID:guid}"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+@using BookingApp.Shared;
+@using BookingApp.Shared.Responses.CustomerResponse
+@using BookingApp.Shared.Requests.BusinessRequests;
+@using BookingApp.Shared.Requests.CustomerRequests;
+@using BookingApp.Shared.Responses.CustomerResponse
+@using BookingApp.Shared.Requests.ServiceRequests;
+@using BookingApp.Shared.Responses.BusinessResponse;
+@using BookingApp.Shared.Responses.CustomerResponse;
+@using BookingApp.Shared.Responses.ServiceResponse;
+@using Microsoft.EntityFrameworkCore;
+@using MudBlazor;
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<MudContainer Class="mt-16 px-4" MaxWidth="MaxWidth.False">
+    <!-- Top Bar with Logo, Search Bar, and Profile Icon -->
+    <MudGrid AlignItems="Center" JustifyContent="SpaceBetween" Class="my-2">
+        <!-- Circular Logo -->
+        <MudItem xs="2" Class="text-center">
+            <MudAvatar Icon="@Icons.Material.Filled.AccountCircle" Size="Size.Large" Class="mx-auto" />
+        </MudItem>
+
+        <!-- Search Box (Clickable) -->
+        <MudItem xs="8">
+            <div @onclick="@(() => NavigateToSearchPage(customer.CustomerID))" style="cursor: pointer;">
+                <MudAutocomplete T="string"
+                                 Label="Search for a business..."
+                                 Variant="Variant.Outlined"
+                                 ReadOnly="true"
+                                 Adornment="Adornment.Start"
+                                 AdornmentIcon="@Icons.Material.Filled.Search"
+                                 Placeholder="Enter business name..."
+                                 Class="search-box"
+                                 Style="width: 100%; border: 1px solid #000;" />
+            </div>
+        </MudItem>
+
+        <!-- Recently Viewed Dropdown -->
+        @if (RecentlyViewedBusinesses.Any())
+        {
+            <MudMenu>
+                <MudButton Variant="Variant.Outlined">Recently Viewed</MudButton>
+                <MudMenuItems>
+                    @foreach (var business in RecentlyViewedBusinesses)
+                    {
+                        <MudMenuItem @onclick="() => NavigateToSearchPage(business.BusinessID)">
+                            @business.BizName
+                        </MudMenuItem>
+                    }
+                </MudMenuItems>
+            </MudMenu>
+        }
+
+</MudGrid>
+    @if (customer != null)
+    {
+        <MudText Typo="Typo.h5" Align=Align.Center Class="mb-4">Welcome, @customer.Name!</MudText>
+    }
+
+
+    <!-- Upcoming Appointments Section -->
+    <MudPaper Elevation="2" Class="pa-4 my-4">
+        <MudText Typo="Typo.h6">Upcoming Appointments</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudPaper Class="pa-2" Style="background-color: #ffbd59">
+                    <MudText Typo="Typo.body1">Remember To Check Upcoming Appointments</MudText>
+                    <MudText Typo="Typo.body2">Failure to attend can lead to cancellations</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudText Typo="Typo.h6" Class="my-4">Discover Services</MudText>
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column justify-content-center align-items-center" Style="height: 150px; text-align: center; cursor:pointer;" @onclick="(()=> NavigateToSearchPage(customerID))">
+                <MudIcon Icon="@Icons.Material.Filled.Spa" Size="Size.Large" Class="mb-2" />
+                <MudText Typo="Typo.body1">Spas</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column justify-content-center align-items-center" Style="height: 150px; text-align: center; cursor:pointer;" @onclick="(()=> NavigateToSearchPage(customerID))">
+                <MudIcon Icon="@Icons.Material.Filled.Restaurant" Size="Size.Large" Class="mb-2" />
+                <MudText Typo="Typo.body1">Restaurants</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column justify-content-center align-items-center" Style="height: 150px; text-align: center; cursor:pointer;" @onclick="(()=> NavigateToSearchPage(customerID))">
+                <MudIcon Icon="@Icons.Material.Filled.Store" Size="Size.Large" Class="mb-2" />
+                <MudText Typo="Typo.body1">Stores</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4 d-flex flex-column justify-content-center align-items-center" Style="height: 150px; text-align: center; cursor:pointer;" @onclick="(()=> NavigateToSearchPage(customerID))">
+                <MudIcon Icon="@Icons.Material.Filled.AutoFixHigh" Size="Size.Large" Class="mb-2" />
+                <MudText Typo="Typo.body1">Nail Salons</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    
+</MudContainer>
+
+@code {
+
+    #region Lifecycle
+    [Parameter]
+    public Guid customerID { get; set; }
+    public Guid ServiceID { get; set; }
+
+    private Business business = new Business();
+    private Customer customer = new Customer();
+    private Service service = new Service();
+
+    protected async override void OnInitialized()
+    {
+        LoadCustomer();
+        //LoadServices();
+
+        base.OnInitialized();
+    }
+
+    #endregion
+
+    #region customer
+
+    async internal void LoadCustomer()
+    {
+
+        try
+        {
+            GetCustomerByIdRequest customerByIdRequest = new GetCustomerByIdRequest
+            {
+                    CustomerId = customerID
+            };
+
+
+
+            var response = await Http.PostAsJsonAsync("api/Customer/getcustomerbyID", customerByIdRequest);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+            var loginResponse = await response.Content.ReadFromJsonAsync<GetCustomerByIdResponse>();
+
+            customer = loginResponse.Customer;
+            //service business.services.ToList();
+         
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+
+    #endregion
+    
+    #region SearchFeatures 
+        private string SearchQuery { get; set; } = "";
+
+        private async Task<IEnumerable<string>> SearchBusinesses(string value, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return new List<string>();
+
+            // Fetch businesses from API
+            var businesses = await Http.GetFromJsonAsync<List<Business>>($"api/businesses/search/{value}", cancellationToken);
+
+            return businesses?.Select(b => b.BizName) ?? new List<string>();
+        }
+
+        private void HandleKeyDown(KeyboardEventArgs e)
+        {
+            if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                Navigation.NavigateTo($"/search?query={SearchQuery}");
+            }
+        }
+        private List<Business> RecentlyViewedBusinesses = new();
+
+        private void AddToRecentlyViewed()
+        {
+            if (!string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                var existing = RecentlyViewedBusinesses.FirstOrDefault(b => b.BizName == SearchQuery);
+                if (existing == null)
+                {
+                    RecentlyViewedBusinesses.Add(new Business { BizName = SearchQuery });
+                }
+            }
+        }
+        private void NavigateToSearchPage(Guid customerID)
+        {
+        NavigationManager.NavigateTo($"/searchpage/{customerID}");
+    }
+
+
+    #endregion
+    
+    private void ProfileClicked()
+    {
+        // Handle profile click event
+    }
+    [Inject] NavigationManager NavigationManager { get; set; }
+
+    private void NavigateToBusinessPage(int businessId)
+    {
+        // Navigate to the business details page with the business ID as a query parameter
+        NavigationManager.NavigateTo($"/searchpage/{businessId}");
+    }
+}

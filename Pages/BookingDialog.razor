@@ -1,0 +1,118 @@
+﻿@using BookingApp.Shared;
+@using BookingApp.Shared.Requests.ServiceRequests;
+@using BookingApp.Shared.Responses.ServiceResponse;
+
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h5">Choose Date & Time</MudText>
+
+        <MudDatePicker @bind-Date="_selectedDate" Label="Date" DateFormat="dd/MM/yyyy" />
+
+        <MudSelect T="string" Label="Time Slot" @bind-Value="_selectedTime">
+            @foreach (var time in TimeSlots)
+            {
+                <MudSelectItem Value="@time">@time</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Color="Color.Secondary" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ConfirmBooking">Book</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter]
+    public Service? service { get; set; }
+
+    [Parameter]
+    public Guid CustomerID { get; set; }
+
+    [Parameter]
+    public string BusinessName { get; set; }
+
+
+    [Inject]
+    public HttpClient Http { get; set; }
+
+    [Inject]
+    public IDialogService DialogService { get; set; }
+
+    [Inject]
+    public ISnackbar Snackbar { get; set; }
+
+    private DateTime? SelectedDateTime { get; set; }
+
+
+    private DateTime? _selectedDate = DateTime.Today;
+    private string _selectedTime;
+
+    private List<string> TimeSlots = new()
+    {
+        "9:00 AM", "9:15 AM", "9:30 AM", "9:45 AM", "10:00 AM", "10:15 AM", "10:30 AM", "10:45 AM", "11:00 AM", "11:15 AM", "11:30 AM",
+        "11:45 AM", "12:00 PM", "12:15 PM", "12:30 PM", "12:45 PM", "1:00 PM", "1:15 PM", "1:30 PM", "1:45 PM", "2:00 PM", "2:15 PM",
+        "2:30 PM", "2:45 PM", "3:00 PM", "3:15 PM", "3:30 PM", "3:45 PM", "4:00 PM", "4:15 PM", "4:30 PM", "4:45 PM", "5:00 PM"
+    };
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+    private async Task ConfirmBooking()
+    {
+        if (service == null || CustomerID == Guid.Empty || _selectedTime == null)
+        {
+            Snackbar.Add("Booking information is incomplete. Please select a time and try again.", Severity.Error);
+            return;
+        }
+
+        var timeParsed = DateTime.TryParse(_selectedTime, out var parsedTime);
+        if (!timeParsed || !_selectedDate.HasValue)
+        {
+            Snackbar.Add("Invalid date or time selected.", Severity.Error);
+            return;
+        }
+
+        var combinedDateTime = _selectedDate.Value.Date + parsedTime.TimeOfDay;
+
+        var newBooking = new Booking
+            {
+                BookingID = Guid.NewGuid(),
+                ServiceID = service.ServiceID,
+                businessName = BusinessName,
+                CustomerID = CustomerID,
+                DatetimeBooking = combinedDateTime
+            };
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/BookingController/create", newBooking);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Booking confirmed!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(newBooking));
+            }
+            else
+            {
+                Snackbar.Add("Failed to save booking. Try again.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public class BookingInfo
+    {
+        public DateTime Date { get; set; }
+        public string Time { get; set; }
+        public string ServiceName { get; set; }
+        public decimal Price { get; set; }
+    }
+}

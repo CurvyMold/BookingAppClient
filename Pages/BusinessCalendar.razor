@@ -1,0 +1,262 @@
+﻿@page "/businesscalendar/{BusinessID:guid}"
+@using BookingApp.Shared.DTOs
+@using BookingApp.Shared.Requests.BookingRequests
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mx-auto">
+    <!-- 🔹 Header Section -->
+    <MudGrid Justify="Justify.Center">
+        <MudItem xs="12">
+            <MudPaper Class="text-center pa-3" Elevation="3" Style="border-radius: 10px">
+                <MudText Typo="Typo.h4" Align="Align.Center" Color="Color.Primary">Business Calendar</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <!-- 🔹 Date & Navigation Section -->
+    <MudGrid Class="mt-4">
+        <MudItem xs="12">
+            <MudPaper Class="pa-2" Elevation="2" Style="border-radius: 10px;">
+                <MudGrid Justify="Justify.SpaceBetween" AlignItems="Center">
+                    <MudItem>
+                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousWeek">
+                            Prev
+                        </MudButton>
+                    </MudItem>
+                    <MudItem>
+                        <MudDatePicker Date="@SelectedDate" DateChanged="OnDateChanged" DateFormat="dd/MM/yyyy" Style="border: 2px solid #212121; border-radius: 5px; padding: 4px;" />
+                    </MudItem>
+                    <MudItem>
+                        <MudButton Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.ChevronRight" OnClick="NextWeek">
+                            Next
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <!-- 🔹 Calendar View (Week Layout) -->
+    <MudGrid Class="mt-4">
+        <MudItem xs="12">
+            <MudTable T="DateTime" Elevation="2" Class="pa-3" Style="border-radius: 10px;">
+                <thead>
+                    <tr>
+                        @foreach (var day in WeekDays)
+                        {
+                            <th class="text-center">
+                                <MudText Typo="Typo.body1" Color="Color.Secondary">@day</MudText>
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        @foreach (var date in WeekDates)
+                        {
+                            <td class="text-center">
+                                <MudPaper Elevation="3" Class="pa-2 clickable" OnClick="() => SelectDate(date)">
+                                    <MudText Typo="Typo.h6" Align="Align.Center">@date.Day</MudText>
+                                </MudPaper>
+                            </td>
+                        }
+                    </tr>
+                </tbody>
+            </MudTable>
+        </MudItem>
+    </MudGrid>
+
+    <!-- 🔹 Appointments List -->
+    <MudGrid Class="mt-4">
+        <MudItem xs="12">
+            <MudPaper Elevation="3" Class="pa-4" Style="border-radius: 10px;">
+
+                <!-- Appointment Header with Spacing and Line -->
+                <MudText Typo="Typo.h4" Align="Align.Center" Color="Color.Primary" Class="mb-2">
+                    Appointments for @(SelectedDate.HasValue ? SelectedDate.Value.ToString("dd/MM/yyyy") : "No Date Selected")
+                </MudText>
+
+                <hr style="border-top: 1px solid #424242; margin-bottom: 16px;" /> <!-- Horizontal Line with Space -->
+
+                <!-- Appointments List -->
+                <MudList T="BookingDTO">
+                    @if (FilteredBookings.Any())
+                    {
+                        @foreach (var booking in FilteredBookings.Select((b, i) => new { b, i }))
+                        {
+                            var backgroundColor = booking.i % 2 == 0 ? "#f5f5f5" : "#e0e0e0";
+
+                            <MudListItem Style="@($"background-color: {backgroundColor}; border-radius: 8px; padding: 8px;")">
+                                <MudGrid Justify="Justify.SpaceBetween" AlignItems="Center">
+                                    <MudItem xs="9">
+                                        <MudText Typo="Typo.body1">
+                                            @booking.b.DatetimeBooking.ToString("hh:mm tt") - @booking.b.CustomerName - @booking.b.ServiceName
+                                        </MudText>
+                                    </MudItem>
+                                    <MudItem xs="3" Class="d-flex justify-end">
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="true">
+                                            Cancel
+                                        </MudButton>
+                                    </MudItem>
+                                </MudGrid>
+                            </MudListItem>
+                        }
+                    }
+                    else
+                    {
+                        <MudListItem>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                No appointments for this date.
+                            </MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+</MudContainer>
+
+@code {
+
+    private DateTime? SelectedDate { get; set; } = DateTime.Today;
+    private List<string> WeekDays = new() { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    private List<DateTime> WeekDates = new();
+
+    [Parameter] public Guid BusinessID { get; set; }
+
+    private List<BookingDTO> AllBookings = new();
+    private List<BookingDTO> FilteredBookings = new();
+
+    // private class BookingDto
+    // {
+    //     public int Id { get; set; }
+    //     public DateTime DatetimeBooking { get; set; }
+    //     public string ServiceName { get; set; } = string.Empty;
+    //     public string CustomerName { get; set; } = string.Empty;
+    // }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBookingsAsync();
+        CalculateWeekDates();
+        FilterBookings();
+    }
+
+    private async Task LoadBookingsAsync()
+    {
+        try
+        {
+            BookingRequest bookingRequest = new BookingRequest
+            {BusinessID = BusinessID};
+
+            var response = await Http.PostAsJsonAsync($"api/BookingController/businessBooking", bookingRequest);
+
+            if (response != null)
+            {
+
+                AllBookings = await response.Content.ReadFromJsonAsync<List<BookingDTO>>();
+
+                
+            }
+            else
+            {
+                Snackbar.Add("No bookings found for this business.", Severity.Warning);
+                AllBookings = new();
+            }
+
+            StateHasChanged();
+
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load bookings: {ex.Message}", Severity.Error);
+            AllBookings = new();
+        }
+
+    }
+
+    private void CalculateWeekDates()
+    {
+        WeekDates.Clear();
+
+        if (SelectedDate.HasValue)
+        {
+            var startOfWeek = SelectedDate.Value.AddDays(-(int)SelectedDate.Value.DayOfWeek);
+            for (int i = 0; i < 7; i++)
+            {
+                WeekDates.Add(startOfWeek.AddDays(i));
+            }
+        }
+    }
+
+    private void SelectDate(DateTime date)
+    {
+        SelectedDate = date;
+        CalculateWeekDates();
+        FilterBookings();
+    }
+
+    private void PreviousWeek()
+    {
+        if (SelectedDate.HasValue)
+        {
+            SelectedDate = SelectedDate.Value.AddDays(-7);
+            CalculateWeekDates();
+            FilterBookings();
+        }
+    }
+
+    private void NextWeek()
+    {
+        if (SelectedDate.HasValue)
+        {
+            SelectedDate = SelectedDate.Value.AddDays(7);
+            CalculateWeekDates();
+            FilterBookings();
+        }
+    }
+
+    private void OnDateChanged(DateTime? newDate)
+    {
+        SelectedDate = newDate;
+        CalculateWeekDates();
+        FilterBookings();
+    }
+
+    private void FilterBookings()
+    {
+        if (SelectedDate.HasValue)
+        {
+            FilteredBookings = AllBookings
+                .Where(b => b.DatetimeBooking.Date == SelectedDate.Value.Date)
+                .OrderBy(b => b.DatetimeBooking)
+                .ToList();
+        }
+        else
+        {
+            FilteredBookings = new();
+        }
+
+        StateHasChanged();
+    }
+    private void CancelAppointment(Guid id)
+    {
+        var appointmentToRemove = FilteredBookings.FirstOrDefault(a => a.Id == id);
+        if (appointmentToRemove != null)
+        {
+            FilteredBookings.Remove(appointmentToRemove);
+            StateHasChanged(); // Refresh UI
+        }
+    }
+
+    private class Appointment
+    {
+        public int Id { get; set; }
+        public DateTime Date { get; set; }
+        public string Time { get; set; }
+        public string Name { get; set; }
+    }
+}

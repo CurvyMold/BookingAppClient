@@ -1,0 +1,259 @@
+﻿@page "/signup"
+@* Expose Endpoints *@
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+@using BookingApp.Shared;
+@using Microsoft.EntityFrameworkCore;
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<MudGrid Justify="Justify.Center" AlignItems="AlignItems.Center" Style="height: 100vh;">
+    <MudItem xs="12" sm="7" md="5">
+        <MudPaper Class="pa-4" Style="max-width: 500px; width: 100%;">
+            <MudForm @ref="form" @bind-IsValid="@success" @bind-Errors="@errors">
+                <!-- Page Title -->
+                <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">Create a New Account</MudText>
+
+                <!-- Account Type Selection -->
+                <div class="d-flex">
+                    <MudRadioGroup T="string" Label="Account Type" @bind-Value="accountType" Required="true" RequiredError="Account type is required!">
+                        <MudRadio Value="@("Customer")">Personal</MudRadio>
+                        <MudRadio Value="@("Business")">Business</MudRadio>
+                    </MudRadioGroup>
+                </div>
+
+                <!-- Name Field -->
+                <MudTextField T="string" Label="Name" Required="true" RequiredError="Name is required!" @bind-Value="NameValue"/>
+
+                <!-- Email Field -->
+                <MudTextField T="string" Label="Email" Required="true" RequiredError="Email is required!"
+                Validation="@(new Func<string, IEnumerable<string>>(ValidateEmail))" @bind-Value="EmailValue" />
+
+                <!-- Address Field -->
+                <MudTextField T="string" Label="Address" Required="true" RequiredError="Address is required!" @bind-Value="AddressValue" />
+
+                <!-- Phone Number Field -->
+                <MudTextField T="string" Label="Phone Number" Required="true" RequiredError="Phone number is required!"
+                Validation="@(new Func<string, IEnumerable<string>>(ValidatePhoneNumber))" @bind-Value="PhoneValue" />
+
+                @if (accountType == "Customer")
+                {
+                    <!-- Age Field -->
+                    <MudTextField T="int" Label="Age" Required="true" RequiredError="Age is required!"
+                    Validation="@(new Func<int, IEnumerable<string>>(ValidateAge))" Immediate="true" @bind-Value="customer.Age" />
+
+                    <!-- Gender Selection -->
+                    <div class="d-flex">
+                        <MudRadioGroup T="string" Label="Gender" Required="true" RequiredError="Gender is required!" @bind-Value="customer.Gender">
+                            <MudRadio Value="@("Male")">Male</MudRadio>
+                            <MudRadio Value="@("Female")">Female</MudRadio>
+                            <MudRadio Value="@("Other")">Other</MudRadio>
+                        </MudRadioGroup>
+                    </div>
+                }
+
+                <!-- Password Field -->
+                <MudTextField T="string" Label="Password" HelperText="Choose a strong password" @ref="pwField1"
+                InputType="InputType.Password"
+                Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))" Required="true"
+                RequiredError="Password is required!" @bind-Value="PasswordValue" />
+
+                <!-- Confirm Password Field -->
+                <MudTextField T="string" Label="Confirm Password" HelperText="Repeat the password"
+                InputType="InputType.Password"
+                Validation="@(new Func<string, string>(PasswordMatch))" />
+
+                <!-- Submit Button -->
+                <div class="d-flex align-center justify-space-between">
+                    <MudCheckBox T="bool" Required="true" RequiredError="You must agree to the terms" Label="I agree to the terms" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" Class="ml-auto" @onclick="Post">Sign Up</MudButton>
+                </div>
+
+                <div class="d-flex align-center justify-space-between">
+                    <MudLink Href="/" Target="_self" Class="mud-button mud-button-text mud-primary-text">
+                        Already have an account? Log In
+                    </MudLink>
+                </div>
+            </MudForm>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    bool success;
+    string[] errors = { };
+    MudTextField<string> pwField1;
+    MudForm form;
+    string accountType = "";
+
+    Customer customer = new Customer();
+    Business business = new Business();
+
+    string NameValue
+    {
+        get => accountType == "Customer" ? customer.Name : business.BizName;
+        set
+        {
+            if (accountType == "Customer")
+                customer.Name = value;
+            else
+                business.BizName = value;
+        }
+    }
+    string AddressValue
+    {
+        get => accountType == "Customer" ? customer.Address : business.BizAddress;
+        set
+        {
+            if (accountType == "Customer")
+                customer.Address = value;
+            else
+                business.BizAddress = value;
+        }
+    }
+    string PhoneValue
+    {
+        get => accountType == "Customer" ? customer.Phonenumber : business.BizPhone;
+        set
+        {
+            if (accountType == "Customer")
+                customer.Phonenumber = value;
+            else
+                business.BizPhone = value;
+        }
+    }
+    string PasswordValue
+    {
+        get => accountType == "Customer" ? customer.Password : business.BizPass;
+        set
+        {
+            if (accountType == "Customer")
+                customer.Password = value;
+            else
+                business.BizPass = value;
+        }
+    }
+    string EmailValue
+    {
+        get => accountType == "Customer" ? customer.Email : business.BizEmail;
+        set
+        {
+            if (accountType == "Customer")
+                customer.Email = value;
+            else
+                business.BizEmail = value;
+        }
+    }
+
+    async Task Post()
+    {
+        if (accountType == "Customer")
+        {
+            try
+            {
+
+                var result = await Http.PostAsJsonAsync("api/Customer", customer);
+                if (!result.IsSuccessStatusCode)
+                {
+                    Console.WriteLine("Failed to submit data!");
+                }
+                else
+                {
+                    Console.WriteLine("Account created successfully!");
+
+                    // Redirect to default page
+                    Navigation.NavigateTo("/");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception occurred: {ex.Message}");
+            }
+        }
+        else if (accountType == "Business")
+        {
+            try
+            {
+
+                var result = await Http.PostAsJsonAsync("api/Business", business);
+                if (!result.IsSuccessStatusCode)
+                {
+                    Console.WriteLine("Failed to submit data!");
+                    Console.WriteLine(business.BizName + business.BizAddress + business.BizPhone);
+                }
+                else
+                {
+                    Console.WriteLine("Account created successfully!");
+
+                    // Redirect to default page
+                    Navigation.NavigateTo("/");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception occurred: {ex.Message}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("Invalid account type!");
+        }
+    }
+
+
+
+    private IEnumerable<string> PasswordStrength(string pw)
+    {
+        if (string.IsNullOrWhiteSpace(pw))
+        {
+            yield return "Password is required!";
+            yield break;
+        }
+        if (pw.Length < 8)
+            yield return "Password must be at least 8 characters long";
+        if (!Regex.IsMatch(pw, "[A-Z]"))
+            yield return "Password must contain at least one uppercase letter";
+        if (!Regex.IsMatch(pw, "[a-z]"))
+            yield return "Password must contain at least one lowercase letter";
+        if (!Regex.IsMatch(pw, "[0-9]"))
+            yield return "Password must contain at least one digit";
+    }
+
+    private string PasswordMatch(string arg)
+    {
+        if (pwField1.Value != arg)
+            return "Passwords do not match";
+        return null;
+    }
+
+    private IEnumerable<string> ValidateAge(int age)
+    {
+        if (age < 18 || age > 120)
+            yield return "Age must be between 18 and 120";
+    }
+
+    private IEnumerable<string> ValidatePhoneNumber(string phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            yield return "Phone number is required!";
+            yield break;
+        }
+        if (!Regex.IsMatch(phone, "^\\+?[0-9]{7,15}$"))
+            yield return "Phone number is invalid";
+    }
+
+    private IEnumerable<string> ValidateEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            yield return "Email is required!";
+            yield break;
+        }
+
+        if (!Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            yield return "Invalid email format!";
+        }
+    }
+}

@@ -1,0 +1,17 @@
+﻿@page "/businessdetails/{BusinessId:guid}"
+@inject NavigationManager NavigationManager
+
+<MudContainer>
+    <MudText Typo="Typo.h4">Business Details</MudText>
+    <MudText Typo="Typo.body1">Loading information for business ID: @BusinessId</MudText>
+</MudContainer>
+
+@code {
+    [Parameter] public int BusinessId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        
+    }
+}
+

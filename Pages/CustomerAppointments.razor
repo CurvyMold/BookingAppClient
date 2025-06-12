@@ -1,0 +1,146 @@
+﻿@page "/appointments/{customerID:guid}"
+@using BookingApp.Shared
+@using BookingApp.Shared.Responses.CustomerResponse
+@using BookingApp.Shared.Requests.CustomerRequests
+@using MudBlazor
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6 px-4">
+    <MudTypography Typo="Typo.h4" Class="mb-2 fw-bold">Appointments</MudTypography>
+    <MudTypography Typo="Typo.body1" Color="Color.Secondary">FINISHED APPOINTMENTS</MudTypography>
+
+    <MudGrid Container Spacing="3" Class="mt-4">
+        @if (Appointments?.Any() == true)
+        {
+            @foreach (var appointment in Appointments)
+            {
+                <MudItem xs="12">
+                    <MudCard Class="pa-4" Elevation="3">
+                        <MudGrid Container AlignItems="Center" Justify="Justify.SpaceBetween">
+                            <MudItem xs="8">
+                                <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined">Finished</MudChip>
+                                <MudTypography Typo="Typo.h6" Class="fw-bold mt-2">
+                                    @appointment.ServiceName
+                                </MudTypography>
+                                <MudTypography Typo="Typo.body2" Color="Color.Secondary">
+                                    @appointment.BusinessName
+                                </MudTypography>
+
+                                <MudGrid Container AlignItems="Center" Class="mt-1">
+                                    <MudItem>
+                                        <MudAvatar Size="Size.Small" Src="barbershop_logo.png" Alt="Business Logo" />
+                                    </MudItem>
+                                    <MudItem>
+                                        <MudTypography Typo="Typo.body2" Class="ml-2">@appointment.BusinessName</MudTypography>
+                                    </MudItem>
+                                </MudGrid>
+
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2"
+                                           OnClick="() => BookAgain(appointment)">
+                                    Book again
+                                </MudButton>
+                            </MudItem>
+
+                            <MudItem xs="4" Class="text-right">
+                                <MudTypography Typo="Typo.body2" Color="Color.Secondary">@appointment.Date.ToString("MMMM")</MudTypography>
+                                <MudTypography Typo="Typo.h4" Class="fw-bold">@appointment.Date.Day</MudTypography>
+                                <MudTypography Typo="Typo.body2">@appointment.Date.ToString("HH:mm")</MudTypography>
+                            </MudItem>
+                        </MudGrid>
+                    </MudCard>
+                </MudItem>
+            }
+        }
+        else
+        {
+            <MudItem xs="12">
+                <MudAlert Severity="Severity.Info">No appointments found.</MudAlert>
+            </MudItem>
+        }
+    </MudGrid>
+</MudContainer>
+
+@code {
+    [Parameter]
+    public Guid customerID { get; set; }
+
+    private Customer customer = new();
+    private List<Appointment> Appointments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomer();
+        await LoadAppointmentsAsync();
+    }
+
+    private async Task LoadCustomer()
+    {
+        try
+        {
+            var request = new GetCustomerByIdRequest { CustomerId = customerID };
+            var response = await Http.PostAsJsonAsync("api/Customer/getcustomerbyID", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<GetCustomerByIdResponse>();
+                customer = result?.Customer ?? new Customer();
+            }
+            else
+            {
+                Snackbar.Add("Failed to load customer details.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading customer: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadAppointmentsAsync()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/BookingController/customerAppointments", customerID);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<AppointmentDTO>>();
+                Appointments = data?.Select(a => new Appointment
+                {
+                    ServiceName = a.ServiceName,
+                    BusinessName = a.BusinessName,
+                    Date = a.Date
+                }).ToList() ?? new();
+            }
+            else
+            {
+                Snackbar.Add("Failed to load appointments.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void BookAgain(Appointment appointment)
+    {
+        Navigation.NavigateTo($"/searchpage/{customerID}");
+    }
+
+    public class AppointmentDTO
+    {
+        public string ServiceName { get; set; }
+        public string BusinessName { get; set; }
+        public DateTime Date { get; set; }
+    }
+
+    private class Appointment
+    {
+        public string ServiceName { get; set; }
+        public string BusinessName { get; set; }
+        public DateTime Date { get; set; }
+    }
+}

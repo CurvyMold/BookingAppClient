@@ -1,0 +1,166 @@
+﻿@* @page "/appointments/{customerID:guid}"
+@using System.ComponentModel.DataAnnotations
+@using System.Text.RegularExpressions
+@using BookingApp.Shared;
+@using BookingApp.Shared.Responses.CustomerResponse
+@using BookingApp.Shared.Requests.CustomerRequests;
+@using BookingApp.Shared.Responses.CustomerResponse
+@using BookingApp.Shared.Requests.ServiceRequests;
+@using BookingApp.Shared.Responses.CustomerResponse;
+@using BookingApp.Shared.Responses.ServiceResponse;
+@using Microsoft.EntityFrameworkCore;
+@using MudBlazor;
+@inject HttpClient Http
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6 px-4">
+
+    <!-- Page Heading -->
+    <MudTypography Typo="Typo.h4" Class="mb-2 fw-bold">Appointments</MudTypography>
+    <MudTypography Typo="Typo.body1" Color="Color.Secondary">FINISHED APPOINTMENTS</MudTypography>
+
+    <!-- Appointment List -->
+    <MudGrid Container Spacing="3" Class="mt-4">
+        @foreach (var appointment in Appointments)
+        {
+            <MudItem xs="12">
+                <MudCard Class="pa-4" Elevation="3">
+
+                    <MudGrid Container AlignItems="Center" Justify="Justify.SpaceBetween">
+                        <MudItem xs="8">
+                            <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined">Finished</MudChip>
+                            <MudTypography Typo="Typo.h6" Class="fw-bold mt-2">
+                                @appointment.ServiceName (@appointment.BarberName)
+                            </MudTypography>
+                            <MudTypography Typo="Typo.body2" Color="Color.Secondary">
+                                with @appointment.BarberName
+                            </MudTypography>
+
+                            <MudGrid Container AlignItems="Center" Class="mt-1">
+                                <MudItem>
+                                    <MudAvatar Size="Size.Small" Src="barbershop_logo.png" Alt="Barbershop Logo" />
+                                </MudItem>
+                                <MudItem>
+                                    <MudTypography Typo="Typo.body2" Class="ml-2">@appointment.BusinessName</MudTypography>
+                                </MudItem>
+                            </MudGrid>
+
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-2"
+                                       OnClick="() => BookAgain(appointment)">
+                                Book again
+                            </MudButton>
+                        </MudItem>
+
+                        <!-- Date Section -->
+                        <MudItem xs="4" Class="text-right">
+                            <MudTypography Typo="Typo.body2" Color="Color.Secondary">@appointment.Date.ToString("MMMM")</MudTypography>
+                            <MudTypography Typo="Typo.h4" Class="fw-bold">@appointment.Date.Day</MudTypography>
+                            <MudTypography Typo="Typo.body2">@appointment.Date.ToString("HH:mm")</MudTypography>
+                        </MudItem>
+                    </MudGrid>
+
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+
+</MudContainer>
+
+@code {
+
+
+
+    #region
+    [Parameter]
+    public Guid customerID { get; set; }
+    public Guid ServiceID { get; set; }
+
+    private Customer customer = new Customer();
+    private Service service = new Service();
+
+    protected async override void OnInitialized()
+    {
+        LoadCustomer();
+        //LoadServices();
+
+        base.OnInitialized();
+    }
+
+    #endregion
+
+    #region customer
+
+    async internal void LoadCustomer()
+    {
+
+        try
+        {
+            GetCustomerByIdRequest customerByIdRequest = new GetCustomerByIdRequest
+            {
+                    CustomerId = customerID
+            };
+
+
+
+            var response = await Http.PostAsJsonAsync("api/Customer/getcustomerbyID", customerByIdRequest);
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Failed to submit data!");
+            }
+            var loginResponse = await response.Content.ReadFromJsonAsync<GetCustomerByIdResponse>();
+
+            customer = loginResponse.Customer;
+            //service business.services.ToList();
+
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception occurred: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+
+    #endregion
+
+
+    private List<Appointment> Appointments = new()
+    {
+        new Appointment
+        {
+            ServiceName = "Skin fade",
+            BarberName = "Josh Mason",
+            BusinessName = "Dalby’s Barbers",
+            Date = new DateTime(2024, 2, 20, 11, 00, 00)
+        },
+        new Appointment
+        {
+            ServiceName = "Skin fade",
+            BarberName = "Sam James",
+            BusinessName = "Dalby’s Barbers",
+            Date = new DateTime(2023, 12, 30, 14, 10, 00)
+        },
+        new Appointment
+        {
+            ServiceName = "Skin fade",
+            BarberName = "Sam James",
+            BusinessName = "Dalby’s Barbers",
+            Date = new DateTime(2023, 11, 15, 10, 45, 00)
+        }
+    };
+
+    private void BookAgain(Appointment appointment)
+    {
+        // Logic to navigate to the booking page
+        Console.WriteLine($"Booking again for {appointment.ServiceName} with {appointment.BarberName}");
+    }
+
+    private class Appointment
+    {
+        public string ServiceName { get; set; }
+        public string BarberName { get; set; }
+        public string BusinessName { get; set; }
+        public DateTime Date { get; set; }
+    }
+}
+ *@
